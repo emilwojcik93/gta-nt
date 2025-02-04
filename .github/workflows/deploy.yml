@@ -5,6 +5,7 @@ on:
     branches:
       - master 
       - main
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -23,4 +24,49 @@ jobs:
       - run: sudo apt-get install libcairo2-dev libfreetype6-dev libffi-dev libjpeg-dev libpng-dev libz-dev pngquant
       - run: pip install mkdocs-material mkdocs-static-i18n mkdocs-glightbox pillow cairosvg
       - run: mkdocs gh-deploy --force
+      - name: Create source code archive
+        run: |
+          zip -r source_code.zip .
+          tar -czvf source_code.tgz .
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: source-code-zip
+          path: ./source_code.zip
+      - uses: actions/upload-artifact@v3
+        with:
+          name: source-code-tgz
+          path: ./source_code.tgz
 
+  release:
+    needs: deploy
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: source-code-zip
+        path: ./output
+    - uses: actions/download-artifact@v3
+      with:
+        name: source-code-tgz
+        path: ./output
+
+    - name: Set Version to Today's Date
+      id: extract_version
+      run: echo "VERSION=$(date +'%d.%m.%Y')" >> $GITHUB_ENV
+
+    - name: Create or Update GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ env.VERSION }}
+        name: "Release ${{ env.VERSION }}"
+        body: |
+          Release version ${{ env.VERSION }}.
+        files: |
+          ./output/source_code.zip
+          ./output/source_code.tgz
+        overwrite: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
